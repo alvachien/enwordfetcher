@@ -23,7 +23,8 @@ namespace enwordfetcher
             WordStrings = File.ReadAllLines("words.txt");
             TestFetchAllWordsAsync();
 
-            
+            Console.WriteLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+            Console.WriteLine("Press ANY key to exit");
             Console.Read();
 #else
             var wordLink = @"https://github.com/dwyl/english-words/raw/master/words_alpha.txt";
@@ -103,7 +104,10 @@ namespace enwordfetcher
 
             var backgroundTasks = new List<Task>();
             // For testing purpose, just peek 10
+#if AC_DEBUG
             nAmt = 10;
+#endif
+
             for (Int32 i = 0; i < nAmt; i++)
             {
                 String strword = Program.WordStrings[i];
@@ -113,8 +117,9 @@ namespace enwordfetcher
 
             if (File.Exists("results.txt"))
             {
-                File.Delete("results.txt");
+                File.Delete("results.txt");                
             }
+
             File.WriteAllLines("results.txt", Program.Results);
         }
 
@@ -131,6 +136,7 @@ namespace enwordfetcher
             Boolean useIciba = true; // http://www.iciba.com/
             Boolean useYoudao = false; // US pron: https://dict.youdao.com/dictvoice?audio=take+part+in&type=2
             String resString = String.Empty;
+
             if (useBing)
             {
                 resString = await client.GetStringAsync("https://www.bing.com/dict/search?q=" + strword);
@@ -173,6 +179,10 @@ namespace enwordfetcher
 
                 //// Sentences
                 //iPos = resString.IndexOf("<div class=\"collins-section\">");
+            }
+            else if(useYoudao)
+            {
+
             }
         }
     }
