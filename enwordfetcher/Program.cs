@@ -284,23 +284,23 @@ namespace enwordfetcher
                         }
                     }
 
+                    // Transforms
+                    iPos = resString.IndexOf("<h1 class=\"base-word abbr chinese change-base\">变形</h1>");
+                    if (iPos != -1)
+                    {
+                        iPos = resString.IndexOf("<p>", iPos);
+                        iPos2 = resString.IndexOf("</p>", iPos) + "<p>".Length;
+                        String strForms = resString.Substring(iPos, iPos2 - iPos);
+                        Console.WriteLine("Forms: " + strForms);
+                    }
+
+                    //// Sentences
+                    //iPos = resString.IndexOf("<div class=\"collins-section\">");
+
                     if (!bfailed)
                     {
                         Program.Results.Add(wr);
                     }
-
-                    //// Transforms
-                    //iPos = resString.IndexOf("<h1 class=\"base-word abbr chinese change-base\">变形</h1>");
-                    //if (iPos != -1)
-                    //{
-                    //    iPos = resString.IndexOf("<p>", iPos);
-                    //    iPos2 = resString.IndexOf("</p>", iPos) + "<p>".Length;
-                    //    String strForms = resString.Substring(iPos, iPos2 - iPos);
-                    //    Console.WriteLine("Forms: " + strForms);
-                    //}
-
-                    //// Sentences
-                    //iPos = resString.IndexOf("<div class=\"collins-section\">");
                 }
                 else if (useYoudao)
                 {
@@ -308,7 +308,7 @@ namespace enwordfetcher
             }
             catch (Exception exp)
             {
-                Console.WriteLine("Error: " + exp.Message);
+                Console.WriteLine("Error on " + strword + " : " + exp.Message);
             }
         }
     }
