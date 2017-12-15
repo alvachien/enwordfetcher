@@ -11,6 +11,12 @@ using System.Threading;
 
 namespace enwordfetcher
 {
+    internal class WordRefSent
+    {
+        internal string EnSent { get; set; }
+        internal string CnSent { get; set; }
+    }
+
     internal class WordResult
     {
         internal string WordString { get; set; }
@@ -18,11 +24,15 @@ namespace enwordfetcher
         internal string WordPronUS { get; set; }
         internal string WordPronUKFile { get; set; }
         internal string WordPronUSFile { get; set; }
+        internal List<String> WordForms { get; set; }
         internal List<String> WordExplains { get; private set; }
+        internal List<WordRefSent> WordSentences { get; private set; }
 
         internal WordResult()
         {
             this.WordExplains = new List<string>();
+            this.WordSentences = new List<WordRefSent>();
+            this.WordForms = new List<string>();
         }
 
         internal string WriteToString()
@@ -37,15 +47,39 @@ namespace enwordfetcher
             rststr += Environment.NewLine;
             rststr += "File for Pron [US]:" + this.WordPronUSFile;
             rststr += Environment.NewLine;
-            rststr += "Explains:";
-            rststr += Environment.NewLine;
-            foreach(string str in this.WordExplains)
+            if (this.WordExplains.Count > 0)
             {
-                rststr += str;
+                rststr += "Explains:";
                 rststr += Environment.NewLine;
+                foreach (string str in this.WordExplains)
+                {
+                    rststr += str;
+                    rststr += Environment.NewLine;
+                }
             }
-            rststr += Environment.NewLine;
+            if (this.WordSentences.Count > 0)
+            {
+                rststr += "Reference Sentences: ";
+                rststr += Environment.NewLine;
+                foreach (var sent in this.WordSentences)
+                {
+                    rststr += sent.EnSent;
+                    rststr += sent.CnSent;
+                    rststr += Environment.NewLine;
+                }
+            }
+            if (this.WordForms.Count > 0)
+            {
+                rststr += "Forms: ";
+                rststr += Environment.NewLine;
+                foreach (var frm in this.WordForms)
+                {
+                    rststr += frm;
+                    rststr += Environment.NewLine;
+                }
+            }
 
+            rststr += Environment.NewLine;
             return rststr;
         }
     }
@@ -65,9 +99,13 @@ namespace enwordfetcher
             WordStrings = File.ReadAllLines("words.txt");
 
             var backgroundTasks = new List<Task>();
-            for (Int32 i = 0; i < 20; i++)
+            for (Int32 i = 0; i < WordStrings.Length; i++)
             {
                 String strword = Program.WordStrings[i];
+                strword = strword.Trim();
+                if (String.IsNullOrEmpty(strword))
+                    continue;
+
                 backgroundTasks.Add(Task.Run(() => TestFetchWordAsync(strword)));
             }
             Task.WaitAll(backgroundTasks.ToArray());
@@ -198,7 +236,7 @@ namespace enwordfetcher
                 {
                     // Check whether there is a SPACE inside
                     String strword2 = strword.Trim();
-                    strword2 = strword2.Replace(' ', '+');
+                    strword2 = strword2.Replace(" ", "%20");
                     resString = await client.GetStringAsync("http://www.iciba.com/" + strword2);
 
                     Boolean bfailed = false;
@@ -206,8 +244,11 @@ namespace enwordfetcher
 
                     // Pron.
                     Int32 iPos = resString.IndexOf("<div class=\"base-speak\">");
-                    Int32 iPos2 = resString.IndexOf("</div>", iPos) + "</div>".Length;
-                    String usPron = resString.Substring(iPos, iPos2 - iPos);
+                    if (iPos == -1)
+                        throw new Exception("Failed to load pron");
+
+                    Int32 iPos2 = resString.IndexOf("</div>", iPos);
+                    String usPron = resString.Substring(iPos + "<div class=\"base-speak\">".Length, iPos2 - iPos);
 
                     if (!String.IsNullOrEmpty(usPron))
                     {
@@ -268,7 +309,7 @@ namespace enwordfetcher
                                 {
                                     j2 = expitem.IndexOf("</span>", j1);
                                     j1 = expitem.IndexOf(">", j1);
-                                    strexp += expitem.Substring(j1 + 1, j2 - j1 - 1) + " ;";
+                                    strexp += expitem.Substring(j1 + 1, j2 - j1 - 1);
 
                                     j1 = expitem.IndexOf("<span", j2);
                                 }
@@ -285,17 +326,58 @@ namespace enwordfetcher
                     }
 
                     // Transforms
-                    iPos = resString.IndexOf("<h1 class=\"base-word abbr chinese change-base\">变形</h1>");
+                    iPos = resString.IndexOf("<h1 class=\"base-word abbr chinese change-base\">");
                     if (iPos != -1)
                     {
                         iPos = resString.IndexOf("<p>", iPos);
-                        iPos2 = resString.IndexOf("</p>", iPos) + "<p>".Length;
+                        iPos += 3;
+                        iPos2 = resString.IndexOf("</p>", iPos);
                         String strForms = resString.Substring(iPos, iPos2 - iPos);
-                        Console.WriteLine("Forms: " + strForms);
+
+                        iPos = strForms.IndexOf("<span>");
+                        while(iPos != -1)
+                        {
+                            iPos += 6; // "<span>".Length
+                            iPos2 = strForms.IndexOf("</span>", iPos);
+
+                            String strfi = strForms.Substring(iPos, iPos2 - iPos);
+                            strfi = strfi.Trim();
+
+                            Int32 f1 = strfi.IndexOf("<");
+                            Int32 f2 = strfi.IndexOf(">", f1);
+                            Int32 f3 = strfi.IndexOf("</a>", f2);
+                            wr.WordForms.Add(strfi.Substring(0, f1).Trim() + " " + strfi.Substring(f2 + 1, f3 - f2 - 1).Trim());
+
+                            iPos = strForms.IndexOf("<span>", iPos2);
+                        }
                     }
 
-                    //// Sentences
-                    //iPos = resString.IndexOf("<div class=\"collins-section\">");
+                    // Sentences
+                    iPos = resString.IndexOf("<div class='sentence-item'>");
+                    while (iPos != -1)
+                    {
+                        iPos2 = resString.IndexOf("</div>", iPos);
+
+                        String strSent = resString.Substring(iPos, iPos2 - iPos);
+                        Int32 s1 = strSent.IndexOf("<p class='family-english'>");
+                        s1 = strSent.IndexOf("<span>", s1);
+                        Int32 s2 = strSent.IndexOf("</span>", s1);
+
+                        WordRefSent wrs = new WordRefSent();
+                        wrs.EnSent = strSent.Substring(s1 + 6, s2 - s1 - 6);
+                        wrs.EnSent = wrs.EnSent.Replace("<b>", "");
+                        wrs.EnSent = wrs.EnSent.Replace("</b>", "");
+
+                        s1 = strSent.IndexOf("<p class='family-chinese size-chinese'>", s2);
+                        s1 += "<p class='family-chinese size-chinese'>".Length;
+                        s2 = strSent.IndexOf("</p>", s1);
+                        wrs.CnSent = strSent.Substring(s1, s2 - s1);
+                        wrs.CnSent = wrs.CnSent.Replace("<b>", "");
+                        wrs.CnSent = wrs.CnSent.Replace("</b>", "");
+                        wr.WordSentences.Add(wrs);
+
+                        iPos = resString.IndexOf("<div class='sentence-item'>", iPos2);
+                    }
 
                     if (!bfailed)
                     {
